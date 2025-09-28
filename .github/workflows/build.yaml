@@ -1,0 +1,36 @@
+name: Build ZMK Firmware
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Build firmware
+      id: build
+      run: |
+        docker run --rm -v $PWD:/workspace zmkfirmware/zmk-build-arm:3.0 bash -c "
+          cd /workspace &&
+          west build -s /zmk/app -b nice_nano_v2 -- -DSHIELD=bonzo -DZMK_CONFIG=/workspace &&
+          echo '::set-output name=firmware::zmk.uf2'
+        " || echo "Build failed"
+        
+    - name: Debug - List files
+      run: |
+        echo "=== Checking for firmware files ==="
+        find . -name "*.uf2" -o -name "*.hex" -o -name "*.bin" 2>/dev/null || echo "No firmware files found"
+        echo "=== Build directory contents ==="
+        ls -la build/zephyr/ 2>/dev/null || echo "No build directory"
+        
+    - name: Upload Firmware
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: bonzo-firmware
+        path: build/zephyr/zmk.uf2
