@@ -12,25 +12,27 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Build firmware
-      id: build
+    - name: Build with detailed logging
       run: |
         docker run --rm -v $PWD:/workspace zmkfirmware/zmk-build-arm:3.0 bash -c "
-          cd /workspace &&
-          west build -s /zmk/app -b nice_nano_v2 -- -DSHIELD=bonzo -DZMK_CONFIG=/workspace &&
-          echo '::set-output name=firmware::zmk.uf2'
-        " || echo "Build failed"
+          set -x
+          cd /workspace
+          pwd
+          ls -la
+          echo '=== Building firmware ==='
+          west build -s /zmk/app -b nice_nano_v2 -- -DSHIELD=bonzo -DZMK_CONFIG=/workspace
+          echo '=== Build completed ==='
+          find . -name '*.uf2' -o -name '*.hex' -o -name '*.bin' | head -10
+          ls -la build/zephyr/ 2>/dev/null || echo 'Build directory not found'
+        "
         
-    - name: Debug - List files
+    - name: Check for any firmware files
       run: |
-        echo "=== Checking for firmware files ==="
-        find . -name "*.uf2" -o -name "*.hex" -o -name "*.bin" 2>/dev/null || echo "No firmware files found"
-        echo "=== Build directory contents ==="
-        ls -la build/zephyr/ 2>/dev/null || echo "No build directory"
-        
-    - name: Upload Firmware
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: bonzo-firmware
-        path: build/zephyr/zmk.uf2
+        echo "=== Searching for firmware files ==="
+        find . -type f \( -name "*.uf2" -o -name "*.hex" -o -name "*.bin" \) 2>/dev/null | while read file; do
+          echo "Found: $file"
+          ls -la "$file"
+        done
+        if [ $? -ne 0 ]; then
+          echo "No firmware files found at all"
+        fi
